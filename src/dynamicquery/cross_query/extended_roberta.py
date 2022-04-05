@@ -520,6 +520,7 @@ class ExtendedRobertaForExternalClassification(RobertaPreTrainedModel):
         input_ids=None,
         extended_states=None,
         attention_mask=None,
+        includes_tweet_state=False,
         token_type_ids=None,
         position_ids=None,
         head_mask=None,
@@ -569,6 +570,11 @@ class ExtendedRobertaForExternalClassification(RobertaPreTrainedModel):
         
         labels = torch.zeros((batch_size,))
         labels = labels.long().to(logits.device)
+        
+        if includes_tweet_state:
+            n_extensions = n_extensions - 1
+            logits = logits[:, :n_extensions]
+        
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, n_extensions), labels.view(-1))

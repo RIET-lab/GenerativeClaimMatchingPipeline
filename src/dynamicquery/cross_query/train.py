@@ -11,11 +11,12 @@ def train(model,
           optimizer, 
           device,
           train_dataloader,
-          dev_dataloader,
+          dev_dataloader=None,
           epochs=1,
           print_steps=5,
           adapters_only=False, 
           cls_train=True,
+          includes_tweet_state=False,
           save_path="./saved_model.pt"):
         
     for name, param in model.named_modules():
@@ -41,8 +42,9 @@ def train(model,
             inpt_dict = {
                 "input_ids": inputs[0],
                 "attention_mask": inputs[1],
-                "extended_states": external_inputs
-            }                
+                "extended_states": external_inputs,
+                "includes_tweet_state": includes_tweet_state
+            }
             # zero the parameter gradients
             optimizer.zero_grad()
 
@@ -61,26 +63,28 @@ def train(model,
                 print(f'TRAIN [{epoch + 1}, {i + 1:5d}] loss: {running_loss / print_steps:.3f}')
                 running_loss = 0.0
 
-        running_loss = 0.0   
-        model.eval()
-        for i, data in enumerate(dev_dataloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, external_inputs = data
-            inputs = [elmt.to(device) for elmt in inputs]
-            external_inputs = external_inputs.to(device)
-            
-            inpt_dict = {
-                "input_ids": inputs[0],
-                "attention_mask": inputs[1],
-                "extended_states": external_inputs
-            }                
+        if dev_dataloader:
+            running_loss = 0.0   
+            model.eval()
+            for i, data in enumerate(dev_dataloader, 0):
+                # get the inputs; data is a list of [inputs, labels]
+                inputs, external_inputs = data
+                inputs = [elmt.to(device) for elmt in inputs]
+                external_inputs = external_inputs.to(device)
 
-            with torch.no_grad():
-                outputs = model(**inpt_dict)
-                loss = outputs.loss
-                running_loss += loss.item()
+                inpt_dict = {
+                    "input_ids": inputs[0],
+                    "attention_mask": inputs[1],
+                    "extended_states": external_inputs,
+                    "includes_tweet_state": includes_tweet_state
+                }                
 
-        print(f'DEV [{epoch + 1}, {i + 1:5d}] loss: {running_loss / len(dev_dataloader):.3f}')
+                with torch.no_grad():
+                    outputs = model(**inpt_dict)
+                    loss = outputs.loss
+                    running_loss += loss.item()
+
+            print(f'DEV [{epoch + 1}, {i + 1:5d}] loss: {running_loss / len(dev_dataloader):.3f}')
 
     print('Finished Training')
     torch.save(model.state_dict(), save_path)

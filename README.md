@@ -21,9 +21,22 @@ model_string = sentence-transformers/sentence-t5-large
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
-### Run the training
+### Run the candidate selection training
 ```
 python src/dynamicquery/train_sentence_model.py <path to where experiment config.ini exists>
 ```
+
+## Train CA Model
+Training the Cross Attention Model requires initial pretraining to align the new parameters to the embedding space of the candidates
+
+### Run the cross attention pretraining
+```
+python src/dynamicquery/cross_query/run_pretrain.py <path to where experiment config.ini exists>
+```
+an example:
+```
+python src/dynamicquery/cross_query/run_pretrain.py experiments/cross_query_v1/base_rndm_large_neg/
+```
+
 
 ## Train Cross Attention
