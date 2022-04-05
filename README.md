@@ -1,7 +1,7 @@
 ## Download Requirements
 `pip install -r requirements.txt`
 
-## Train Sentence Transformer
+## Candidate Selection
 Sentence Transformer is the first stage of the claim matching pipeline. We have set it up to work with Huggingfaces implementations of sentence T5 (for all corresponding sizes)
 
 ### Setup experimental config
@@ -21,15 +21,15 @@ model_string = sentence-transformers/sentence-t5-large
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
-### Run the candidate selection training
+### Run the Candidate Selection Training
 ```
 python src/dynamicquery/train_sentence_model.py <path to where experiment config.ini exists>
 ```
 
-## Train Query Model
+## Reranking Model
 Training the Cross Attention/Query Model requires initial pretraining to align the new parameters to the embedding space of the candidates
 
-### Setup experimental config
+### Setup Experimental Config
 create a config.ini that looks like
 ```
 [pretraining]
@@ -55,7 +55,7 @@ model_string = roberta-base
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
-### Run the cross attention pretraining
+### Run Reranking Model Pretraining
 ```
 python src/dynamicquery/cross_query/run_pretrain.py <path to where experiment config.ini exists>
 ```
@@ -65,7 +65,7 @@ python src/dynamicquery/cross_query/run_pretrain.py experiments/cross_query_v1/b
 ```
 
 
-## Train Cross Attention
+### Train Reranking Model
 ```
 python src/dynamicquery/cross_query/run_train.py <path to where experiment config.ini exists>
 ```
