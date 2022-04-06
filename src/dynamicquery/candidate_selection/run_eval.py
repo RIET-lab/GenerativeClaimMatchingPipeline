@@ -85,7 +85,7 @@ def run():
         scores = tweet_embs @ embs.T
         ranks = [score.argsort()[::-1] for score in scores]
         if args.save_ranks:
-            np.save(os.path.join(args.experiment_path, f"ranks_{ptn}.npy",
+            np.save(os.path.join(args.experiment_path, f"ranks_{ptn}.npy"),
                     np.array(ranks))
         
         if args.save_embs:
