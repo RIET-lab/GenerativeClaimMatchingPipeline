@@ -1,9 +1,15 @@
-# Download Requirements / Setup Package
-Install from requirements file  
+# Setup
+Install dependancies from requirements file (currently this is heavy, in future planning to skim some of this)  
 `pip install -r requirements.txt`
 
-Setup with pip  
+Setup utilities/package with pip  
 `pip install .`
+
+Define aliases for quick script running  
+`source aliases.sh`
+
+CLEF data should be downloaded and unzipped into `data/`
+
 
 # Candidate Selection
 Sentence Transformer is the first stage of the claim matching pipeline. We have set it up to work with Huggingfaces implementations of sentence T5 (for all corresponding sizes)
@@ -27,7 +33,7 @@ Most attributes are self explanatory, except with_negatives is a boolean referri
 
 ### Run the Candidate Selection Training
 ```
-python src/dynamicquery/train_sentence_model.py <path to where experiment config.ini exists>
+selection-train <path to where experiment config.ini exists>
 ```
 
 # Reranking Model
@@ -62,19 +68,19 @@ Most attributes are self explanatory, except with_negatives is a boolean referri
 
 ### Run Reranking Model Pretraining
 ```
-python src/dynamicquery/cross_query/run_pretrain.py <path to where experiment config.ini exists>
+rerank-pretrain <path to where experiment config.ini exists>
 ```
 an example:
 ```
-python src/dynamicquery/cross_query/run_pretrain.py experiments/cross_query_v1/base_rndm_large_neg/
+rerank-pretrain experiments/cross_query/base_rndm_large_neg_v1/
 ```
 
 
 ### Train Reranking Model
 ```
-python src/dynamicquery/cross_query/run_train.py <path to where experiment config.ini exists>
+rerank-train <path to where experiment config.ini exists>
 ```
 an example:
 ```
-python src/dynamicquery/cross_query/run_train.py experiments/cross_query_v1/base_rndm_large_neg/
+rerank-train experiments/cross_query/base_rndm_large_neg_v1/
 ```

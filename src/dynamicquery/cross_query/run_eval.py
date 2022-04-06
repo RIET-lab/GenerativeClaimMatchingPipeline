@@ -100,7 +100,6 @@ def run():
             out = model(**inpt_dict)
             _probits = torch.nn.functional.softmax(out.logits[:,:-1], dim=-1)
         probits.append(_probits.detach().numpy())
-    print(out.logits.shape)
     probits = np.concatenate(probits, 0)
     
     # dev ptn
@@ -115,7 +114,6 @@ def run():
             out = model(**inpt_dict)
             _probits = torch.nn.functional.softmax(out.logits[:,:-1], dim=-1)
         dev_probits.append(_probits.detach().numpy())
-
     dev_probits = np.concatenate(dev_probits, 0)
     
     reranks = probits.argsort()[:,::-1]
