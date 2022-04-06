@@ -1,7 +1,10 @@
 import re
 import torch
 
-is_adapter = lambda name: re.match("roberta.encoder\.adapter_layer\.", name)
+def is_adapter(name): 
+    check_v1 = re.match("roberta.encoder\.adapter_layer\.", name)
+    check_v2 = name == "roberta.adapter_layer"
+    return check_v1 or check_v2
 def freeze(module):
     for p in module.parameters(): p.requires_grad = False
 def unfreeze(module):
@@ -18,7 +21,7 @@ def train(model,
           cls_train=True,
           includes_tweet_state=False,
           save_path="./saved_model.pt"):
-        
+      
     for name, param in model.named_modules():
         if adapters_only and not is_adapter(name):
             freeze(param)
@@ -86,5 +89,6 @@ def train(model,
 
             print(f'DEV [{epoch + 1}, {i + 1:5d}] loss: {running_loss / len(dev_dataloader):.3f}')
 
-    print('Finished Training')
-    torch.save(model.state_dict(), save_path)
+    print('Finished Training Session')
+    if save_path:
+        torch.save(model.state_dict(), save_path)

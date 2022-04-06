@@ -94,8 +94,23 @@ def run():
 
     # training
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    optimizer = optim.AdamW(model.parameters(), lr=config["training"].getfloat("lr"))
 
+    if config["training"].getint("adapter_epochs") > 0:
+        optimizer = optim.AdamW(model.parameters(), lr=config["training"].getfloat("adapter_lr"))
+        train.train(
+            model, 
+            optimizer, 
+            device,
+            train_dl,
+            dev_dl,
+            epochs=config["training"].getint("adapter_epochs"),
+            print_steps=5,
+            adapters_only=True, 
+            cls_train=True,
+            save_path=None
+        )
+    
+    optimizer = optim.AdamW(model.parameters(), lr=config["training"].getfloat("lr"))
     train.train(
         model, 
         optimizer, 

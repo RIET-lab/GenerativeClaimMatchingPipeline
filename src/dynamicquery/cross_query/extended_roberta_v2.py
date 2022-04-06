@@ -2,7 +2,20 @@ import torch
 from transformers.models.roberta.modeling_roberta import *
 nn = torch.nn
     
-class ExtendedRobertaModel(RobertaModel):    
+class ExtendedRobertaModel(RobertaModel):
+    def __init__(self, config, add_pooling_layer=True):
+        RobertaPreTrainedModel.__init__(self, config)
+        self.config = config
+
+        self.embeddings = RobertaEmbeddings(config)
+        self.encoder = RobertaEncoder(config)
+        self.adapter_layer = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
+
+        self.pooler = RobertaPooler(config) if add_pooling_layer else None
+
+        # Initialize weights and apply final processing
+        self.post_init()
+        
     def forward(
         self,
         input_ids=None,
@@ -104,6 +117,7 @@ class ExtendedRobertaModel(RobertaModel):
             inputs_embeds=inputs_embeds,
             past_key_values_length=past_key_values_length,
         )
+        extended_states = self.adapter_layer(extended_states)
         embedding_output = torch.cat([extended_states, embedding_output], dim=1)
 
         batch_size = extended_attention_mask.size(dim=0)

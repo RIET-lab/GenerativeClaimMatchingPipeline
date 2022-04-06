@@ -22,7 +22,6 @@ with_negatives = True
 
 [model]
 model_string = sentence-transformers/sentence-t5-large
-version = 1
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
@@ -57,6 +56,7 @@ pretrained = True
 
 [model]
 model_string = roberta-base
+version = 1
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
