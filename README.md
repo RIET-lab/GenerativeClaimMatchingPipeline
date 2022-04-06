@@ -8,6 +8,9 @@ Setup utilities/package with pip
 Define aliases for quick script running  
 `source aliases.sh`
 
+Download stopwords from nltk for bm25  
+`python -c "import nltk; nltk.download('stopwords')"`
+
 CLEF data should be downloaded and unzipped into `data/`
 
 

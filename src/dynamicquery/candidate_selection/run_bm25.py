@@ -26,7 +26,7 @@ def run():
 
     tweets, test_tweets = utils.get_tweets()
     test_tweets = test_tweets[1:]
-    train_conns, dev_conns, test_conns = utils.get_qrels()
+    train_conns, dev_conns, test_conns = utils.get_qrels(False)
     claims = utils.get_claims()
     
     corpus = claims[["title", "subtitle", "vclaim"]].apply(lambda x: x[0]+' '+x[1]+' '+x[2], axis=1).to_list()
