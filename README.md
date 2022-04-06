@@ -55,6 +55,12 @@ selection-eval <path to experiment config.ini>
 
 Note that if you want to evaluate the baseline model without the trained weights and just use its pretrained weights you can do so by adding a `--raw` flag
 
+Additionally in case when you want to use these candidates for reranking (next stage of pipeline), youll need to also save out the embeddings and rankings. You can do this via `--save_embs` and `--save_ranks` flags. So the call for reranking setup would be:  
+```
+selection-eval <path to experiment config.ini> --save_embs --save_ranks
+```
+Note on this call dont use raw flag since otherwise itll save untrained embeddings, unless you intend to rerank based off of that.
+
 
 # Reranking Model
 Training the Cross Attention/Query Model requires initial pretraining to align the new parameters to the embedding space of the candidates
