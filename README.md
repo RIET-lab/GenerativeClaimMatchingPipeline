@@ -47,6 +47,15 @@ It will default to saving to experiments/candidate_selection/shared_resources. N
 selection-train <path to where experiment config.ini exists>
 ```
 
+### Evaluating of Candidate
+You can evaluate different experiments after training using  
+```
+selection-eval <path to experiment config.ini>
+```
+
+Note that if you want to evaluate the baseline model without the trained weights and just use its pretrained weights you can do so by adding a `--raw` flag
+
+
 # Reranking Model
 Training the Cross Attention/Query Model requires initial pretraining to align the new parameters to the embedding space of the candidates
 
@@ -94,4 +103,13 @@ rerank-train <path to where experiment config.ini exists>
 an example:
 ```
 rerank-train experiments/cross_query/base_rndm_large_neg_v1/
+```
+
+### Evaluation of Rerankings
+```
+rerank-eval <path to where experiment config.ini exists>
+```
+an example:
+```
+rerank-eval experiments/cross_query/base_rndm_large_neg_v1/
 ```
