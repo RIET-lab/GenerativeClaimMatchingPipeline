@@ -1,7 +1,11 @@
-## Download Requirements
+# Download Requirements / Setup Package
+Install from requirements file  
 `pip install -r requirements.txt`
 
-## Candidate Selection
+Setup with pip  
+`pip install .`
+
+# Candidate Selection
 Sentence Transformer is the first stage of the claim matching pipeline. We have set it up to work with Huggingfaces implementations of sentence T5 (for all corresponding sizes)
 
 ### Setup experimental config
@@ -18,6 +22,7 @@ with_negatives = True
 
 [model]
 model_string = sentence-transformers/sentence-t5-large
+version = 1
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
@@ -26,7 +31,7 @@ Most attributes are self explanatory, except with_negatives is a boolean referri
 python src/dynamicquery/train_sentence_model.py <path to where experiment config.ini exists>
 ```
 
-## Reranking Model
+# Reranking Model
 Training the Cross Attention/Query Model requires initial pretraining to align the new parameters to the embedding space of the candidates
 
 ### Setup Experimental Config

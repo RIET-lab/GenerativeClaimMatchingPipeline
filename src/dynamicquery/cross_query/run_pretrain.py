@@ -13,7 +13,8 @@ import torch.optim as optim
 
 import train
 from dynamicquery import utils
-import extended_roberta as roberta
+import extended_roberta_v1 as roberta_v1
+import extended_roberta_v2 as roberta_v2
 import dataloaders
 
 def run():
@@ -37,6 +38,12 @@ def run():
     MAX_LENGTH = config["pretraining"].getint("max_length")
 
     model_str = config["model"].get("model_string")
+    if config["model"].getint("version") == 1:
+        roberta = roberta_v1
+    elif config["model"].getint("version") == 2:
+        roberta = roberta_v2
+    else:
+        raise ValueError("model version not accepted")
     model = roberta.ExtendedRobertaForExternalClassification.from_pretrained(model_str)
     tokenizer = AutoTokenizer.from_pretrained(model_str)
     tokenize = partial(tokenizer, **dict(
