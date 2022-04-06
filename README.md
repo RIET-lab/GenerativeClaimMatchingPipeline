@@ -3,7 +3,7 @@ Install dependancies from requirements file (currently this is heavy, in future 
 `pip install -r requirements.txt`
 
 Setup utilities/package with pip  
-`pip install .`
+`python setup.py install`
 
 Define aliases for quick script running  
 `source aliases.sh`
@@ -12,9 +12,9 @@ CLEF data should be downloaded and unzipped into `data/`
 
 
 # Candidate Selection
-Sentence Transformer is the first stage of the claim matching pipeline. We have set it up to work with Huggingfaces implementations of sentence T5 (for all corresponding sizes)
+Sentence Transformer is the first stage of the claim matching pipeline. We have set it up to work with Huggingfaces implementations of sentence T5 (for all corresponding sizes). We also experiment with BM25 as a baseline done in previous works. We also use BM25 to retrieve negatives for training the sentence model
 
-### Setup experimental config
+### Setup Experimental Config
 create a config.ini that looks like
 ```
 [training]
@@ -30,6 +30,14 @@ with_negatives = True
 model_string = sentence-transformers/sentence-t5-large
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
+
+### Getting BM25 Negatives
+
+Only needed if above config includes `with_negative = True`. Though heavily reccomended, since otherwise problem becomes to easy and doesnt generalize well. Use the following command:  
+```
+selection-bm25 --save_negatives
+```
+It will default to saving to experiments/candidate_selection/shared_resources. Note you only need to do this once, all experiments will draw from there.
 
 ### Run the Candidate Selection Training
 ```

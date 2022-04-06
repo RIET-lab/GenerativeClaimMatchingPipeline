@@ -20,9 +20,15 @@ def get_test_qrels():
 def get_qrels():
     conn_names = ["tweet_id", "tweet_num", "claim_id", "claim_num"]
     train_conns = pd.read_csv(os.path.join(DATAPATH, "qrels-train.tsv"), sep="\t", names=conn_names)
-    top_negative_ranks = np.load("train_negative_ranks.npy")
-    train_conns["negative_claim_idx"] = top_negative_ranks
     dev_conns = pd.read_csv(os.path.join(DATAPATH, "qrels-dev.tsv"), sep="\t", names=conn_names)
+    
+    # get negatives
+    top_negative_ranks = np.load("experiments/candidate_selection/shared_resources/train_negative_ranks.npy")
+    train_conns["negative_claim_idx"] = top_negative_ranks
+
+    dev_top_negative_ranks = np.load("experiments/candidate_selection/shared_resources/dev_negative_ranks.npy")
+    dev_conns["negative_claim_idx"] = dev_top_negative_ranks
+    
     return train_conns, dev_conns, get_test_qrels()
 
 def get_claims():

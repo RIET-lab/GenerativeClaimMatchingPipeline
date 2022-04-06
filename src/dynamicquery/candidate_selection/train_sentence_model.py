@@ -42,7 +42,7 @@ def run():
     with_negatives = config["training"].getboolean("with_negatives")
     train_dl = dataloaders.get_clef2021_dataloader(tokenize, claims, tweets, train_conns, with_negatives=with_negatives,
                                                    params={'batch_size':config["training"].getint("batch_size"), 'shuffle':True})    
-    dev_dl = dataloaders.get_clef2021_dataloader(tokenize, claims, tweets, dev_conns, 
+    dev_dl = dataloaders.get_clef2021_dataloader(tokenize, claims, tweets, dev_conns, with_negatives=with_negatives,
                                                    params={'batch_size':config["training"].getint("batch_size"), 'shuffle':False})
 
     optimizer = optim.AdamW(model.parameters(), lr=config["training"].getfloat("lr"))
