@@ -83,6 +83,37 @@ class ExtendedRobertaAttention(RobertaAttention):
         outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
         return outputs
     
+class ExtendedRobertaCrossAttention(RobertaSelfAttention):
+    def forward(self, q, k, v, attention_mask=None):
+        mixed_query_layer = self.query(q)
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+        key_layer = self.transpose_for_scores(self.key(k))
+        value_layer = self.transpose_for_scores(self.value(v))
+
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        if attention_mask is not None:
+            # Apply the attention mask is (precomputed for all layers in RobertaModel forward() function)
+            attention_scores = attention_scores + attention_mask
+
+        # Normalize the attention scores to probabilities.
+        attention_probs = nn.functional.softmax(attention_scores, dim=-1)
+
+        # This is actually dropping out entire tokens to attend to, which might
+        # seem a bit unusual, but is taken from the original Transformer paper.
+        attention_probs = self.dropout(attention_probs)
+
+        
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+        context_layer = context_layer.view(new_context_layer_shape)
+
+        outputs = (context_layer,)
+        return outputs
+    
+# class ExtendedRobertaC
+    
 class ExtendedRobertaLayer(RobertaLayer):
     def __init__(self, config, extension_prop=False):
         super().__init__(config)
@@ -558,7 +589,10 @@ class ExtendedRobertaForExternalClassification(RobertaPreTrainedModel):
         batch_size = sequence_output.shape[0]
 
         sequence_output = self.dropout(sequence_output)
-        logits = self.classifier(sequence_output)[:,:,0]
+        if includes_tweet_state:
+            logits = torch.einsum("bld,bd->bl", sequence_output[:, :n_extensions-1], sequence_output[:, n_extensions])
+        else:
+            logits = self.classifier(sequence_output)[:,:,0]
 
         loss = None
         # labels = torch.zeros((batch_size, n_extensions))
@@ -571,9 +605,9 @@ class ExtendedRobertaForExternalClassification(RobertaPreTrainedModel):
         labels = torch.zeros((batch_size,))
         labels = labels.long().to(logits.device)
         
-        if includes_tweet_state:
-            n_extensions = n_extensions - 1
-            logits = logits[:, :n_extensions]
+        # if includes_tweet_state:
+        #     n_extensions = n_extensions - 1
+        #     logits = logits[:, :n_extensions]
         
         if labels is not None:
             loss_fct = CrossEntropyLoss()

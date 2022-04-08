@@ -15,6 +15,7 @@ import train
 from dynamicquery import utils
 import extended_roberta_v1 as roberta_v1
 import extended_roberta_v2 as roberta_v2
+import extended_roberta_v3 as roberta_v3
 import dataloaders
 
 def run():
@@ -43,6 +44,8 @@ def run():
         roberta = roberta_v1
     elif config["model"].getint("version") == 2:
         roberta = roberta_v2
+    elif config["model"].getint("version") == 3:
+        roberta = roberta_v3
     else:
         raise ValueError("model version not accepted")
     model = roberta.ExtendedRobertaForExternalClassification.from_pretrained(model_str)

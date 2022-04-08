@@ -27,7 +27,6 @@ def run():
     claims = utils.get_claims()
 
     # setup model
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     model_str = config["model"].get("model_string")
     ft_str = os.path.join(args.experiment_path, "model.pt")
     model = SentenceTransformer(model_str)
