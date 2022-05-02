@@ -23,6 +23,7 @@ def run():
     parser = argparse.ArgumentParser()
     parser.add_argument('experiment_path', type=str,
                         help='path where config lies')
+    parser.add_argument('--no_tweet_emb', action='store_false')
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(os.path.join(args.experiment_path, "config.ini"))
@@ -74,6 +75,7 @@ def run():
     claims = utils.get_claims()
     
     BATCH_SIZE = config["training"].getint("batch_size")
+    N_CANDIDATES = config["training"].getint("n_candidates", 5)
 
     train_dl = dataloaders.get_clef2021_reranked_dataloader(
         tokenize, 
@@ -81,7 +83,7 @@ def run():
         tweets, 
         train_conns,
         neg_embs,
-        neg_ids[:,:5],
+        neg_ids[:,:N_CANDIDATES],
         tweet_embs[()]["train"],
         params={'batch_size':BATCH_SIZE, 'shuffle':True})
 
@@ -91,7 +93,7 @@ def run():
         tweets, 
         dev_conns,
         neg_embs,
-        dev_neg_ids[:,:5],
+        dev_neg_ids[:,:N_CANDIDATES],
         tweet_embs[()]["dev"],
         params={'batch_size':BATCH_SIZE, 'shuffle':False}) 
 
@@ -110,6 +112,7 @@ def run():
             print_steps=5,
             adapters_only=True, 
             cls_train=True,
+            includes_tweet_state=args.no_tweet_emb,
             save_path=None
         )
     
@@ -124,6 +127,7 @@ def run():
         print_steps=5,
         adapters_only=config["training"].getboolean("adapters_only"), 
         cls_train=True,
+        includes_tweet_state=args.no_tweet_emb,
         save_path=os.path.join(args.experiment_path, "trained_model.pt")
     )
     

@@ -24,7 +24,10 @@ class ExtendedRobertaSelfAttention(RobertaSelfAttention):
         n_extensions = extension_states.shape[1]
         hidden_states = torch.cat([extension_states, hidden_states], dim=1)
         if attention_mask is not None:
-            attention_mask = torch.cat([torch.ones((batch_size,1,1,n_extensions)).to(attention_mask.device), attention_mask], dim=-1)
+            extended_attention_mask = torch.zeros((batch_size,1,1,n_extensions), dtype=torch.long, device=attention_mask.device)
+            attention_mask = torch.cat([extended_attention_mask, attention_mask], dim=-1)
+            # print(attention_mask.min(), attention_mask.max(), attention_mask.shape)
+            
         outputs = super().forward(
             hidden_states,
             attention_mask=attention_mask,
@@ -109,6 +112,7 @@ class ExtendedRobertaLayer(RobertaLayer):
         past_key_value=None,
         output_attentions=False,
     ):
+        # print("layer", attention_mask.min(), attention_mask.max(), attention_mask.shape)
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
         self_attn_past_key_value = past_key_value[:2] if past_key_value is not None else None
         self_attention_outputs = self.attention(

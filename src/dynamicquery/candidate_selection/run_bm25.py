@@ -71,10 +71,12 @@ def run():
             map_results[ptn].append(mean_avg_prec(claim_idx, doc_ranks, n))
             
         if args.save_negatives:
-            path = "./experiments/candidate_selection/shared_resources/{}_negative_ranks.npy".format(ptn)
-            print("saving a negative rank list to {}".format(path))
+            full_path = "./experiments/candidate_selection/shared_resources/ranks_{}.npy".format(ptn)
+            neg_path = "./experiments/candidate_selection/shared_resources/{}_negative_ranks.npy".format(ptn)
+            print("saving a negative rank list to {}".format("./experiments/candidate_selection/shared_resources"))
             top_negative_ranks = [doc_rank[~np.isin(doc_rank, claim_idx)][0] for doc_rank in doc_ranks]
-            np.save(path, top_negative_ranks)
+            np.save(neg_path, top_negative_ranks)
+            np.save(full_path, doc_ranks)
             
     print("ptn [map@1, map@5, map@10, map@20]:\n", map_results) 
     

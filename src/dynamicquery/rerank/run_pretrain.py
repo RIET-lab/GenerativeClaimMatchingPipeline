@@ -15,6 +15,7 @@ import train
 from dynamicquery import utils
 import extended_roberta_v1 as roberta_v1
 import extended_roberta_v2 as roberta_v2
+import extended_roberta_v3 as roberta_v3
 import dataloaders
 
 def run():
@@ -42,6 +43,8 @@ def run():
         roberta = roberta_v1
     elif config["model"].getint("version") == 2:
         roberta = roberta_v2
+    elif config["model"].getint("version") == 3:
+        roberta = roberta_v3
     else:
         raise ValueError("model version not accepted")
     model = roberta.ExtendedRobertaForExternalClassification.from_pretrained(model_str)
@@ -60,12 +63,13 @@ def run():
     claims = utils.get_claims()
 
     BATCH_SIZE = config["pretraining"].getint("batch_size")
+    N_CANDIDATES = config["pretraining"].getint("n_candidates", 5)
 
     train_dl = dataloaders.get_clef2021_pretraining_dataloader(
         tokenize, 
         claims, 
         neg_embs,
-        n_negatives=5,
+        n_negatives=N_CANDIDATES,
         params={'batch_size':BATCH_SIZE, 'shuffle':True})
 
     # dev_dl = dataloaders.get_clef2021_pretraining_dataloader(
@@ -89,6 +93,7 @@ def run():
         print_steps=5,
         adapters_only=config["pretraining"].getboolean("adapters_only"), 
         cls_train=True,
+        includes_tweet_state=False,
         save_path=os.path.join(args.experiment_path, "pretrained_model.pt")
     )
     

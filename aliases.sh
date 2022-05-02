@@ -1,3 +1,7 @@
+alias rerank-gen-encode="python src/dynamicquery/rerank-gen/run_encoder.py"
+alias rerank-gen-train="python src/dynamicquery/rerank-gen/run_train.py"
+alias rerank-gen-eval="python src/dynamicquery/rerank-gen/run_eval.py"
+
 alias rerank-pretrain="python src/dynamicquery/rerank/run_pretrain.py"
 alias rerank-train="python src/dynamicquery/rerank/run_train.py"
 alias rerank-eval="python src/dynamicquery/rerank/run_eval.py"

@@ -1,6 +1,11 @@
 data/
+*.code-workspace
+*.csv
+*.jsonl
 *.pt
 *.npy
+*.ipynb
+**/training/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

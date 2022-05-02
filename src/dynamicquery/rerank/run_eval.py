@@ -20,6 +20,8 @@ def run():
     parser = argparse.ArgumentParser()
     parser.add_argument('experiment_path', type=str,
                         help='path where config lies')
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--no_tweet_emb', action='store_false')
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(os.path.join(args.experiment_path, "config.ini"))
@@ -29,11 +31,13 @@ def run():
 
     train_neg_path = os.path.join(cs_path, "ranks_train.npy")
     dev_neg_path = os.path.join(cs_path, "ranks_dev.npy")
+    test_neg_path = os.path.join(cs_path, "ranks_test.npy")
     emb_path = os.path.join(cs_path, "claim_embs.npy")
     tweet_emb_path = os.path.join(cs_path, "tweet_embs.npy")
     
     neg_ids = np.load(train_neg_path)
     dev_neg_ids = np.load(dev_neg_path)
+    test_neg_ids = np.load(test_neg_path)
     neg_embs = np.load(emb_path)
     tweet_embs = np.load(tweet_emb_path, allow_pickle=True)
 
@@ -67,6 +71,7 @@ def run():
     claims = utils.get_claims()
 
     BATCH_SIZE = 32
+    N_CANDIDATES = config["training"].getint("n_candidates", 5)
     
     train_dl = dataloaders.get_clef2021_reranked_eval_dataloader(
         tokenize, 
@@ -74,8 +79,8 @@ def run():
         tweets, 
         train_conns,
         neg_embs,
-        neg_ids[:,:5],
-        tweet_embs[()]["train"],
+        neg_ids[:,:N_CANDIDATES],
+        tweet_embeddings=tweet_embs[()]["train"] if args.no_tweet_emb else None,
         params={'batch_size':BATCH_SIZE, 'shuffle':False})
 
     dev_dl = dataloaders.get_clef2021_reranked_eval_dataloader(
@@ -84,8 +89,8 @@ def run():
         tweets, 
         dev_conns,
         neg_embs,
-        dev_neg_ids[:,:5],
-        tweet_embs[()]["dev"],
+        dev_neg_ids[:,:N_CANDIDATES],
+        tweet_embeddings=tweet_embs[()]["dev"] if args.no_tweet_emb else None,
         params={'batch_size':BATCH_SIZE, 'shuffle':False}) 
     
     # Run
@@ -98,12 +103,15 @@ def run():
             "input_ids": inputs[0],
             "attention_mask": inputs[1],
             "extended_states": external_inputs,
+            "includes_tweet_state": args.no_tweet_emb,
         }
         with torch.no_grad():
             out = model(**inpt_dict)
-            _probits = torch.nn.functional.softmax(out.logits[:,:-1], dim=-1)
+            _probits = torch.nn.functional.softmax(out.logits[:,:], dim=-1)
+            # print(_probits.shape, external_inputs.shape)
         probits.append(_probits.detach().numpy())
     probits = np.concatenate(probits, 0)
+    reranks = probits.argsort()[:,::-1]
     
     # dev ptn
     dev_probits = []
@@ -111,16 +119,43 @@ def run():
         inpt_dict = {
             "input_ids": inputs[0],
             "attention_mask": inputs[1],
-            "extended_states": external_inputs
+            "extended_states": external_inputs,
+            "includes_tweet_state": args.no_tweet_emb,
         }
         with torch.no_grad():
             out = model(**inpt_dict)
-            _probits = torch.nn.functional.softmax(out.logits[:,:-1], dim=-1)
+            _probits = torch.nn.functional.softmax(out.logits[:,:], dim=-1)
         dev_probits.append(_probits.detach().numpy())
-    dev_probits = np.concatenate(dev_probits, 0)
-    
-    reranks = probits.argsort()[:,::-1]
+    dev_probits = np.concatenate(dev_probits, 0)    
     dev_reranks = dev_probits.argsort()[:,::-1]
+    
+    # test ptn
+    if args.test:
+        test_dl = dataloaders.get_clef2021_reranked_eval_dataloader(
+            tokenize, 
+            claims, 
+            test_tweets, 
+            test_conns,
+            neg_embs,
+            test_neg_ids[:,:N_CANDIDATES],
+            tweet_embeddings=tweet_embs[()]["test"] if args.no_tweet_emb else None,
+            params={'batch_size':BATCH_SIZE, 'shuffle':False}) 
+        
+        test_probits = []
+        for inputs, external_inputs in test_dl:
+            inpt_dict = {
+                "input_ids": inputs[0],
+                "attention_mask": inputs[1],
+                "extended_states": external_inputs,
+                "includes_tweet_state": args.no_tweet_emb,
+            }
+            with torch.no_grad():
+                out = model(**inpt_dict)
+                _probits = torch.nn.functional.softmax(out.logits[:,:], dim=-1)
+                # _probits = torch.einsum('...ld,...d->...l', external_inputs[:,:-1], external_inputs[:,-1])
+            test_probits.append(_probits.detach().numpy())
+        test_probits = np.concatenate(test_probits, 0)    
+        test_reranks = test_probits.argsort()[:,::-1]
     
     def get_idx(connections, claims, tweets):
         run_tweets = tweets.join(connections.set_index("tweet_id"), on="id", how="inner")
@@ -154,7 +189,10 @@ def run():
 
     map_results = {}
     map_recall_results = {}
-    for ptn in ["train", "dev"]:
+    partitions = ["train", "dev"]
+    if args.test: partitions.append("test")
+    k_values = list(filter(lambda k: k<=N_CANDIDATES, [1,5,10,20]))
+    for ptn in partitions:
         if ptn == "train":
             run_tweets, claim_idx = get_idx(train_conns, claims, tweets)
             ranks = np.array([ids[rerank] for ids, rerank in zip(neg_ids, reranks)])
@@ -163,18 +201,21 @@ def run():
             ranks = np.array([ids[rerank] for ids, rerank in zip(dev_neg_ids, dev_reranks)])
         elif ptn == "test":
             run_tweets, claim_idx = get_idx(test_conns, claims, test_tweets)
+            ranks = np.array([ids[rerank] for ids, rerank in zip(test_neg_ids, test_reranks)])
 
         map_results[ptn] = []
-        for n in [1,5]:
+        for n in k_values:
             map_results[ptn].append(mean_avg_prec(claim_idx, ranks, n))
 
         map_recall_results[ptn] = []
-        for n in [1,5]:
+        for n in k_values:
             map_recall_results[ptn].append(mean_recall(claim_idx, ranks, n))
-            
-    print("ptn [map@1, map@5]:\n", map_results)
+      
+    map_strings = ", ".join(["map@{}".format(k) for k in k_values])
+    print("ptn [{}]:\n".format(map_strings), map_results)
     print()
-    print("ptn [rec@1, rec@5]:\n", map_recall_results)
+    rec_strings = ", ".join(["rec@{}".format(k) for k in k_values])
+    print("ptn [{}]:\n".format(rec_strings), map_recall_results)
     
 if __name__ == '__main__':
     run()
