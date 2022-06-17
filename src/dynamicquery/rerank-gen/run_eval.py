@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from dynamicquery import utils
+from dynamicquery import utils, defaults
 import dataloaders
 
 def get_most_recent_checkpoint_filename(path):
@@ -25,8 +25,11 @@ def run():
     parser.add_argument('--no-train', action='store_true')
     parser.add_argument('--no-dev', action='store_true')
     parser.add_argument('--bm25', action='store_true')
+    parser.add_argument('--raw', action='store_true')
     parser.add_argument('--n-candidates', type=int, default=None,
                         help="overwrite number of candidates")
+    parser.add_argument('--dataset', type=str, default=None)
+    parser.add_argument('--candidate-selection', type=str, default=None)
     parser.add_argument('--checkpoint', type=int, default=None,
                         help="specify ckpt instead of most recent")
     args = parser.parse_args()
@@ -40,7 +43,11 @@ def run():
     ckpt_filename = get_most_recent_checkpoint_filename(ckpt_str)
     if args.checkpoint:
         ckpt_filename = f"checkpoint-{args.checkpoint}"
-    ckpt_str = os.path.join(ckpt_str, ckpt_filename)
+    
+    if not args.raw:
+        ckpt_str = os.path.join(ckpt_str, ckpt_filename)
+    else:
+        ckpt_str = model_str
     print(f"Loading model from {ckpt_str}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_str)
@@ -55,22 +62,32 @@ def run():
         N_CANDIDATES = args.n_candidates
     print(f"Reranking top {N_CANDIDATES}")
 
-    tweets, test_tweets = utils.get_tweets()
-    test_tweets = test_tweets[1:]
-    train_conns, dev_conns, test_conns = utils.get_qrels()
-    claims = utils.get_claims()
+    if args.dataset is None:
+        dataset = config["data"].get("dataset")
+    else:
+        dataset = args.dataset
+    data = utils.load_data(dataset, test_data=args.test)
+    train_queries, dev_queries = data["queries"]
+    train_qrels, dev_qrels = data["qrels"]
+    targets = data["targets"]
 
-    cs_path = config["eval"].get("candidate_selection")
+    if args.candidate_selection is None:
+        cs_path = config["eval"].get("candidate_selection")
+    else:
+        cs_path = args.candidate_selection
     if args.bm25:
-        cs_path = "experiments/candidate_selection/shared_resources"
+        cs_path = f"experiments/candidate_selection/bm25/{dataset}"
 
     train_ranks_path = os.path.join(cs_path, "ranks_train.npy")
     dev_ranks_path = os.path.join(cs_path, "ranks_dev.npy")
-    test_ranks_path = os.path.join(cs_path, "ranks_test.npy")
 
     train_ranks = np.load(train_ranks_path)
     dev_ranks = np.load(dev_ranks_path)
-    test_ranks = np.load(test_ranks_path)
+    
+    if args.test:
+        test_ranks_path = os.path.join(cs_path, "ranks_test.npy")
+        test_ranks = np.load(test_ranks_path)
+        test_queries, test_qrels = data["test"]
 
     # setup tokenize fn
     tokenizer.pad_token = tokenizer.eos_token
@@ -85,15 +102,27 @@ def run():
         return tokenizer(text, **token_params)
 
     max_length=config["training"].getint("max_length")
-    tweet_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix="tweet:")
-    claim_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix="claim:")
+    if dataset == "clef2021-checkthat-task2a--english":
+        query_prefix = defaults.TASK_2A_EN_QUERY_PREFIX
+        target_prefix = defaults.TASK_2A_EN_TARGET_PREFIX
+    elif dataset == "clef2022-checkthat-task2b--english":
+        query_prefix = defaults.TASK_2B_EN_QUERY_PREFIX
+        target_prefix = defaults.TASK_2B_EN_TARGET_PREFIX
+    elif dataset == "clef2022-checkthat-task2a--arabic":
+        query_prefix = defaults.TASK_2A_AR_QUERY_PREFIX
+        target_prefix = defaults.TASK_2A_AR_TARGET_PREFIX
+    else:
+        raise ValueError(f"Dataset {dataset} not implemented yet")
+
+    tweet_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix=query_prefix)
+    claim_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix=target_prefix)
 
     train_dataset = dataloaders.ExtendedAutoRegressiveEvalDataset(
         tweet_encode_fn=tweet_tokenize, 
         claim_encode_fn=claim_tokenize,
-        claims=claims, 
-        tweets=tweets, 
-        connections=train_conns, 
+        claims=targets, 
+        tweets=train_queries, 
+        connections=train_qrels, 
         ranks=train_ranks,
         n_candidates=N_CANDIDATES
     )
@@ -101,9 +130,9 @@ def run():
     dev_dataset = dataloaders.ExtendedAutoRegressiveEvalDataset(
         tweet_encode_fn=tweet_tokenize, 
         claim_encode_fn=claim_tokenize,
-        claims=claims, 
-        tweets=tweets, 
-        connections=dev_conns, 
+        claims=targets, 
+        tweets=dev_queries, 
+        connections=dev_qrels, 
         ranks=dev_ranks,
         n_candidates = N_CANDIDATES
     )
@@ -167,9 +196,9 @@ def run():
         test_dataset = dataloaders.ExtendedAutoRegressiveEvalDataset(
             tweet_encode_fn=tweet_tokenize, 
             claim_encode_fn=claim_tokenize,
-            claims=claims, 
-            tweets=test_tweets, 
-            connections=test_conns, 
+            claims=targets, 
+            tweets=test_queries, 
+            connections=test_qrels, 
             ranks=test_ranks,
             n_candidates=N_CANDIDATES
         )
@@ -178,10 +207,10 @@ def run():
         
     
     def get_idx(connections, claims, tweets):
-        run_tweets = tweets.join(connections.set_index("tweet_id"), on="id", how="inner")
-        run_tweets = run_tweets.join(claims.set_index("vclaim_id"), on="claim_id", how="inner")
-        run_tweets = run_tweets[["tweet", "vclaim"]].reset_index()
-        claim_idx = [claims.vclaim.to_list().index(t_claim) for t_claim in run_tweets.vclaim.to_list()]
+        run_tweets = tweets.merge(connections, on="query_id", how="inner")
+        run_tweets = run_tweets.merge(claims, on="target_id", how="inner")
+        run_tweets = run_tweets[["query", "target"]].reset_index()
+        claim_idx = [claims.target.to_list().index(t_claim) for t_claim in run_tweets.target.to_list()]
         return run_tweets, claim_idx
 
     def avg_prec(gold, rankings, n):
@@ -216,13 +245,13 @@ def run():
     k_values = list(filter(lambda k: k <= N_CANDIDATES, [1,5,10,20]))
     for ptn in partitions:
         if ptn == "train":
-            run_tweets, claim_idx = get_idx(train_conns, claims, tweets)
+            run_tweets, claim_idx = get_idx(train_qrels, targets, train_queries)
             ranks = np.array([ids[rerank] for ids, rerank in zip(train_ranks, reranks)])
         elif ptn == "dev":
-            run_tweets, claim_idx = get_idx(dev_conns, claims, tweets)
+            run_tweets, claim_idx = get_idx(dev_qrels, targets, dev_queries)
             ranks = np.array([ids[rerank] for ids, rerank in zip(dev_ranks, dev_reranks)])
         elif ptn == "test":
-            run_tweets, claim_idx = get_idx(test_conns, claims, test_tweets)
+            run_tweets, claim_idx = get_idx(test_qrels, targets, test_queries)
             ranks = np.array([ids[rerank] for ids, rerank in zip(test_ranks, test_reranks)])
 
         map_results[ptn] = []

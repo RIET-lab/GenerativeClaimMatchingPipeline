@@ -24,14 +24,12 @@ def run():
     config.read(os.path.join(args.experiment_path, "config.ini"))
 
     # Claim Data
-    tweets, test_tweets = utils.get_tweets()
-    test_tweets = test_tweets[1:]
-    train_conns, dev_conns, test_conns = utils.get_qrels()
-    claims = utils.get_claims()
-
+    data = utils.load_data(config["data"].get("dataset"), negatives_path=config["data"].get("negatives_path"))
+    train_queries, dev_queries = data["queries"]
+    train_qrels, dev_qrels = data["qrels"]
+    targets = data["targets"]
 
     # Model + Dataloaders
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     model = SentenceTransformer(config["model"].get("model_string"))
     tokenize = partial(model.tokenizer, **dict(
         truncation=True, 
@@ -39,10 +37,11 @@ def run():
         padding="max_length", 
         return_attention_mask=True
     ))
-    with_negatives = config["training"].getboolean("with_negatives")
-    train_dl = dataloaders.get_clef2021_dataloader(tokenize, claims, tweets, train_conns, with_negatives=with_negatives,
+    with_negatives = config["data"].get("negatives_path") is not None
+    print(f"Training with negatives: {with_negatives}")
+    train_dl = dataloaders.get_encoder_dataloader(tokenize, targets, train_queries, train_qrels, with_negatives=with_negatives,
                                                    params={'batch_size':config["training"].getint("batch_size"), 'shuffle':True})    
-    dev_dl = dataloaders.get_clef2021_dataloader(tokenize, claims, tweets, dev_conns, with_negatives=with_negatives,
+    dev_dl = dataloaders.get_encoder_dataloader(tokenize, targets, dev_queries, dev_qrels, with_negatives=with_negatives,
                                                    params={'batch_size':config["training"].getint("batch_size"), 'shuffle':False})
 
     optimizer = optim.AdamW(model.parameters(), lr=config["training"].getfloat("lr"))
@@ -52,7 +51,6 @@ def run():
     loss_fn = mnr_loss(temp=config["training"].getfloat("temperature"))
 
     PRINT_STEPS = 5
-
     model.to(device)
     for epoch in range(config["training"].getint("epochs")):  # loop over the dataset multiple times
         running_loss = 0.0

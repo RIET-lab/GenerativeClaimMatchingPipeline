@@ -9,7 +9,7 @@ from transformers import AutoModelForCausalLM, AutoModel
 from transformers import AutoTokenizer, AutoConfig
 from transformers import Trainer, TrainingArguments
 
-from dynamicquery import utils
+from dynamicquery import utils, defaults
 from models.MyGPTNeo import MyGPTNeoForCausalLM
 from dataloaders import ExtendedAutoRegressiveDataset
 import trainers
@@ -20,6 +20,7 @@ def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("experiment_path", type=str, 
                         help="path where config.ini lies")
+    parser.add_argument("--local_rank", type=int, default=-1)
     args = parser.parse_args()
 
     config = configparser.ConfigParser()
@@ -35,16 +36,17 @@ def run():
     # AutoModelForCausalLM.from_pretrained(model_str)
 
     # Setup Data
-    tweets, test_tweets = utils.get_tweets()
-    test_tweets = test_tweets[1:]
-    train_conns, dev_conns, test_conns = utils.get_qrels()
-    claims = utils.get_claims()
+    dataset = config["data"].get("dataset")
+    data = utils.load_data(dataset)
+    train_queries, dev_queries = data["queries"]
+    train_qrels, dev_qrels = data["qrels"]
+    targets = data["targets"]
 
     cs_path = config["training"].get("candidate_selection", None)
     if cs_path:
         print(f"Getting candidates from {cs_path}")
-        train_neg_path = os.path.join(cs_path, "negative_embs_train.npy")
-        dev_neg_path = os.path.join(cs_path, "negative_embs_dev.npy")
+        train_neg_path = os.path.join(cs_path, "ranks_train_negatives.npy")
+        dev_neg_path = os.path.join(cs_path, "ranks_dev_negatives.npy")
         neg_ids = np.load(train_neg_path)
         dev_neg_ids = np.load(dev_neg_path)
     else:
@@ -64,8 +66,20 @@ def run():
         return tokenizer(text, **token_params)
 
     max_length=config["training"].getint("max_length")
-    tweet_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix="tweet:")
-    claim_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix="claim:")
+    if dataset == "clef2021-checkthat-task2a--english":
+        query_prefix = defaults.TASK_2A_EN_QUERY_PREFIX
+        target_prefix = defaults.TASK_2A_EN_TARGET_PREFIX
+    elif dataset == "clef2022-checkthat-task2b--english":
+        query_prefix = defaults.TASK_2B_EN_QUERY_PREFIX
+        target_prefix = defaults.TASK_2B_EN_TARGET_PREFIX
+    elif dataset == "clef2022-checkthat-task2a--arabic":
+        query_prefix = defaults.TASK_2A_AR_QUERY_PREFIX
+        target_prefix = defaults.TASK_2A_AR_TARGET_PREFIX
+    else:
+        raise ValueError(f"Dataset {dataset} not implemented yet")
+
+    query_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix=query_prefix)
+    target_tokenize = partial(_tokenize, tokenizer=tokenizer, max_length=max_length, prefix=target_prefix)
 
     optimization = config["training"].get("optimization", None)
     mask_prior = optimization in ["nl3u", "mle", "rll"]
@@ -73,11 +87,11 @@ def run():
     print(f"Masking prior: {mask_prior}")
 
     train_dataset = ExtendedAutoRegressiveDataset(
-        tweet_encode_fn=tweet_tokenize, 
-        claim_encode_fn=claim_tokenize,
-        claims=claims, 
-        tweets=tweets, 
-        connections=train_conns,
+        tweet_encode_fn=query_tokenize, 
+        claim_encode_fn=target_tokenize,
+        claims=targets, 
+        tweets=train_queries, 
+        connections=train_qrels,
         mask_prior=mask_prior,
         ranks=neg_ids,
         prior_prob=config["training"].getfloat("prior_prob", 0.0),
@@ -86,11 +100,11 @@ def run():
     )
 
     dev_dataset = ExtendedAutoRegressiveDataset(
-        tweet_encode_fn=tweet_tokenize, 
-        claim_encode_fn=claim_tokenize,
-        claims=claims, 
-        tweets=tweets, 
-        connections=dev_conns,
+        tweet_encode_fn=query_tokenize, 
+        claim_encode_fn=target_tokenize,
+        claims=targets, 
+        tweets=dev_queries, 
+        connections=dev_qrels,
         mask_prior=mask_prior,
         ranks=dev_neg_ids,
         include_posterior=optimization=="mutual_information",
@@ -108,6 +122,8 @@ def run():
         eval_steps=config["training"].getint("eval_steps"),
         logging_steps=config["training"].getint("print_steps"),
         lr_scheduler_type=config["training"].get("lr_schedule", "constant"),
+        local_rank=args.local_rank,
+        # fp16=True,
         save_strategy='epoch')
 
     flip = config["training"].getboolean("flip")

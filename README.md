@@ -11,7 +11,10 @@ Define aliases for quick script running
 Download stopwords from nltk for bm25  
 `python -c "import nltk; nltk.download('stopwords')"`
 
-CLEF data should be downloaded and unzipped into `data/`
+
+# Data
+We used this pipeline of CLEF dataset. To download, run  
+`./download_clef.sh`
 
 
 # Candidate Selection

@@ -63,12 +63,12 @@ class ExtendedAutoRegressiveDataset(Dataset):
             ranks: negative rankings (should not include gold label)
         """
         self.claims = claims
-        self.claims["encoded_vclaim"] = self.claims.vclaim.apply(claim_encode_fn)
+        self.claims["encoded_vclaim"] = self.claims.target.apply(claim_encode_fn)
         self.tweets = tweets
-        self.tweets["encoded_tweet"] = self.tweets.tweet.apply(tweet_encode_fn)
+        self.tweets["encoded_tweet"] = self.tweets['query'].apply(tweet_encode_fn)
 
-        run_tweets = self.tweets.join(connections.set_index("tweet_id"), on="id", how="inner")
-        run_tweets = run_tweets.join(self.claims.set_index("vclaim_id"), on="claim_id", how="inner")
+        run_tweets = self.tweets.merge(connections, on="query_id", how="inner")
+        run_tweets = run_tweets.merge(self.claims, on="target_id", how="inner")
         run_tweets = run_tweets[["encoded_tweet", "encoded_vclaim"]].reset_index()
 
         self.data = run_tweets
@@ -141,7 +141,7 @@ class ExtendedAutoRegressiveDataset(Dataset):
     def _with_negative_params(self, index):
         """Each sample comes with a corresponding negative
         """
-        rank_index = int(np.random.exponential(3))
+        rank_index = 0#int(np.random.exponential(3))
         negative_index = self.ranks[index][rank_index]
 
         positive_params = self._joint_params(index)
@@ -203,12 +203,12 @@ def verified_array_cat(list1, list2):
 class ExtendedAutoRegressiveEvalDataset(Dataset):
     def __init__(self, tweet_encode_fn, claim_encode_fn, claims, tweets, connections, ranks, n_candidates=5):
         self.claims = claims
-        self.claims["encoded_vclaim"] = self.claims.vclaim.apply(claim_encode_fn)
+        self.claims["encoded_vclaim"] = self.claims.target.apply(claim_encode_fn)
 
-        run_tweets = tweets.join(connections.set_index("tweet_id"), on="id", how="inner")
-        run_tweets = run_tweets.join(claims.set_index("vclaim_id"), on="claim_id", how="inner")
-        run_tweets = run_tweets[["tweet", "encoded_vclaim"]].reset_index()
-        run_tweets["encoded_tweet"] = run_tweets.tweet.apply(tweet_encode_fn)
+        run_tweets = tweets.merge(connections, on="query_id", how="inner")
+        run_tweets = run_tweets.merge(claims, on="target_id", how="inner")
+        run_tweets = run_tweets[["query", "encoded_vclaim"]].reset_index()
+        run_tweets["encoded_tweet"] = run_tweets['query'].apply(tweet_encode_fn)
         # run_tweets["encoded_vclaim"] = run_tweets.tweet.apply(claim_encode_fn)
         self.data = run_tweets
         self.ranks = ranks
@@ -238,6 +238,41 @@ class ExtendedAutoRegressiveEvalDataset(Dataset):
         return {
             "input_ids": token_ids_negs,
             "attention_mask": attn_mask_negs,
+            "labels": labels,
+            "position_ids": position_ids
+        }
+
+class ExtendedAutoRegressiveScoringDataset(Dataset):
+    def __init__(self, tweet_encode_fn, claim_encode_fn, claims, tweets, ranks, n_candidates=5):
+        self.claims = claims
+        self.claims["encoded_vclaim"] = self.claims.vclaim.apply(claim_encode_fn)
+        self.data = tweets
+        self.data["encoded_tweet"] = self.data.tweet.apply(tweet_encode_fn)
+        self.ranks = ranks
+        self.n_candidates = n_candidates
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        enc_tweet = self.data.encoded_tweet[index]
+        enc_claims = self.claims.encoded_vclaim[self.ranks[index][:self.n_candidates]]
+
+        token_ids = [verified_array_cat(enc_claim["input_ids"], enc_tweet["input_ids"]) \
+            for enc_claim in enc_claims]
+        attn_masks = [verified_array_cat(enc_claim["attention_mask"], enc_tweet["attention_mask"]) \
+            for enc_claim in enc_claims]
+        
+        # print(type(enc_claims), enc_claims)
+        label_mask = verified_array_cat(np.zeros((len(enc_claims.iloc[0]["attention_mask"]),)), enc_tweet["attention_mask"])
+        labels = token_ids[0] * label_mask + -100 * (1 - label_mask)
+        labels = labels.astype(token_ids[0].dtype)
+
+        position_ids = verified_array_cat(np.arange(len(enc_claims.iloc[0]["input_ids"])), np.arange(len(enc_tweet["input_ids"])))
+
+        return {
+            "input_ids": token_ids,
+            "attention_mask": attn_masks,
             "labels": labels,
             "position_ids": position_ids
         }

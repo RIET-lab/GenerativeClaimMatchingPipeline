@@ -13,7 +13,8 @@ import argparse
 
 def run():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--save_negatives', action='store_true')
+    parser.add_argument('dataset', type=str, default="clef2021-checkthat-task2a--english")
+    parser.add_argument('--save', action='store_true')
     args = parser.parse_args()    
     
     sw_nltk = stopwords.words('english')
@@ -24,31 +25,29 @@ def run():
         sentence = re.sub(r'[^\w\s]', '', sentence)
         return [porter.stem(word) for word in sentence.split() if word not in sw_nltk]
 
-    tweets, test_tweets = utils.get_tweets()
-    test_tweets = test_tweets[1:]
-    train_conns, dev_conns, test_conns = utils.get_qrels(False)
-    claims = utils.get_claims()
+    data = utils.load_data(args.dataset)
+    train_queries, dev_queries = data["queries"]
+    train_qrels, dev_qrels = data["qrels"]
+    targets = data["targets"]
     
-    corpus = claims[["title", "subtitle", "vclaim"]].apply(lambda x: x[0]+' '+x[1]+' '+x[2], axis=1).to_list()
+    corpus = utils.get_bm25_preprocess_fn(args.dataset)(targets)
     tokenized_corpus = [preprocess(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
     
-    def get_bm25_rankings(connections, claims, tweets):
-        run_tweets = tweets.join(connections.set_index("tweet_id"), on="id", how="inner")
-        run_tweets = run_tweets.join(claims.set_index("vclaim_id"), on="claim_id", how="inner")
-        run_tweets = run_tweets[["tweet", "vclaim"]]
-        claim_idx = [claims.vclaim.to_list().index(t_claim) for t_claim in run_tweets.vclaim.to_list()]
+    def get_bm25_rankings(qrels, targets, queries):
+        run_queries = queries.merge(qrels, left_on="query_id", right_on="query_id", how="inner")
+        run_queries = run_queries.merge(targets, left_on="target_id", right_on="target_id", how="inner")
+        run_queries = run_queries[["query", "target"]]
+        target_idx = [targets.target.to_list().index(t_claim) for t_claim in run_queries.target.to_list()]
 
-        queries = run_tweets.tweet.to_list()
+        queries = run_queries["query"].to_list()
         tokenized_queries = [preprocess(query) for query in queries]
         doc_scores = [bm25.get_scores(query) for query in tokenized_queries]
         doc_ranks = [score.argsort()[::-1] for score in doc_scores]
-        label_ranks = [list(doc_rank).index(idx) for idx, doc_rank in zip(claim_idx, doc_ranks)]
+        label_ranks = [list(doc_rank).index(idx) for idx, doc_rank in zip(target_idx, doc_ranks)]
 
-        return doc_scores, doc_ranks, claim_idx, label_ranks
-    
-    # doc_scores, doc_ranks, claim_idx, label_ranks = get_bm25_rankings(train_conns, claims, tweets)
-    
+        return doc_scores, doc_ranks, target_idx, label_ranks
+        
     def avg_prec(gold, rankings, n):
         is_rel = (np.array(rankings)[:n] == gold).astype(float)
         return (is_rel/np.arange(1,n+1)).sum()
@@ -58,23 +57,26 @@ def run():
         return np.array(avg_precs).mean()
 
     map_results = {}
-    for ptn in ["train", "dev", "test"]:
+    for ptn in ["train", "dev"]:
         if ptn == "train":
-            doc_scores, doc_ranks, claim_idx, label_ranks = get_bm25_rankings(train_conns, claims, tweets)
+            doc_scores, doc_ranks, target_idx, label_ranks = get_bm25_rankings(train_qrels, targets, train_queries)
+
         elif ptn == "dev":
-            doc_scores, doc_ranks, claim_idx, label_ranks = get_bm25_rankings(dev_conns, claims, tweets)
-        elif ptn == "test":
-            doc_scores, doc_ranks, claim_idx, label_ranks = get_bm25_rankings(test_conns, claims, test_tweets)
+            doc_scores, doc_ranks, target_idx, label_ranks = get_bm25_rankings(dev_qrels, targets, dev_queries)
+        # elif ptn == "test":
+            # doc_scores, doc_ranks, claim_idx, label_ranks = get_bm25_rankings(test_qrels, claims, test_tweets)
 
         map_results[ptn] = []
         for n in [1,5,10,20]:
-            map_results[ptn].append(mean_avg_prec(claim_idx, doc_ranks, n))
+            map_results[ptn].append(mean_avg_prec(target_idx, doc_ranks, n))
             
-        if args.save_negatives:
-            full_path = "./experiments/candidate_selection/shared_resources/ranks_{}.npy".format(ptn)
-            neg_path = "./experiments/candidate_selection/shared_resources/{}_negative_ranks.npy".format(ptn)
-            print("saving a negative rank list to {}".format("./experiments/candidate_selection/shared_resources"))
-            top_negative_ranks = [doc_rank[~np.isin(doc_rank, claim_idx)][0] for doc_rank in doc_ranks]
+        if args.save:
+            save_dir = f"experiments/candidate_selection/bm25/{args.dataset}"
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            full_path = os.path.join(save_dir, f"ranks_{ptn}.npy")
+            neg_path = os.path.join(save_dir, f"ranks_{ptn}_negatives.npy")
+            top_negative_ranks = [doc_rank[~np.isin(doc_rank, target_idx)][0] for doc_rank in doc_ranks]
             np.save(neg_path, top_negative_ranks)
             np.save(full_path, doc_ranks)
             

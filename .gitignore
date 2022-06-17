@@ -1,11 +1,17 @@
 data/
 *.code-workspace
 *.csv
+*.tsv
 *.jsonl
 *.pt
 *.npy
+*.zip
 *.ipynb
 **/training/
+clef2021-checkthat-lab/
+clef2022-checkthat-lab/
+CheckThat-Arabic/
+temp.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
