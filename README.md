@@ -41,7 +41,7 @@ Most attributes are self explanatory, except with_negatives is a boolean referri
 
 Only needed if above config includes `with_negative = True`. Though heavily reccomended, since otherwise problem becomes to easy and doesnt generalize well. Use the following command:  
 ```
-selection-bm25 --save_negatives
+selection-bm25 <dataset name> --save
 ```
 It will default to saving to experiments/candidate_selection/shared_resources. Note you only need to do this once, all experiments will draw from there.
 
@@ -58,7 +58,7 @@ selection-eval <path to experiment config.ini>
 
 Note that if you want to evaluate the baseline model without the trained weights and just use its pretrained weights you can do so by adding a `--raw` flag
 
-Additionally in case when you want to use these candidates for reranking (next stage of pipeline), youll need to also save out the embeddings and rankings. You can do this via `--save_embs` and `--save_ranks` flags. So the call for reranking setup would be:  
+Additionally in case when you want to use these candidates for reranking (next stage of pipeline), youll need to also save out the embeddings and rankings. You can do this via `--save-embs` and `--save-ranks` flags. So the call for reranking setup would be:  
 ```
 selection-eval <path to experiment config.ini> --save_embs --save_ranks
 ```
@@ -95,7 +95,8 @@ version = 1
 ```
 Most attributes are self explanatory, except with_negatives is a boolean referring to if loss is includes hard negatives. If so they must be ranked and stored in a `negative_embs_<partition>.npy` file
 
-### Run Reranking Model Pretraining
+### Run Reranking Model Pretraining [SKIP]
+#### This portion is no longer utilized 
 ```
 rerank-pretrain <path to where experiment config.ini exists>
 ```
@@ -107,18 +108,18 @@ rerank-pretrain experiments/cross_query/base_rndm_large_neg_v1/
 
 ### Train Reranking Model
 ```
-rerank-train <path to where experiment config.ini exists>
+rerank-gen-train <path to where experiment config.ini exists>
 ```
 an example:
 ```
-rerank-train experiments/cross_query/base_rndm_large_neg_v1/
+rerank-gen-train experiments/cross_query/base_rndm_large_neg_v1/
 ```
 
 ### Evaluation of Rerankings
 ```
-rerank-eval <path to where experiment config.ini exists>
+rerank-gen-eval <path to where experiment config.ini exists>
 ```
 an example:
 ```
-rerank-eval experiments/cross_query/base_rndm_large_neg_v1/
+rerank-gen-eval experiments/cross_query/base_rndm_large_neg_v1/
 ```

@@ -4,11 +4,6 @@ import os
 import numpy as np
 from dynamicquery import defaults
 
-DATAPATH = "data/train/"
-TESTPATH = "data/subtask-2a--english"
-
-#############
-
 def get_queries(querypath):
     return pd.read_csv(querypath, sep="\t", names=["query_id", "query"]).drop_duplicates()
 
@@ -139,7 +134,38 @@ def load_data(dataset, negatives_path=None, test_data=False):
             targets = targets,
             test = test_data
         )
+    elif dataset == "that-is-a-known-lie-snopes":
+        train_queries = get_queries(defaults.KNOWN_LIE_TRAIN_QUERY_PATH)
+        train_qrels = get_qrels(defaults.KNOWN_LIE_TRAIN_QREL_PATH)
+        targets = pd.read_csv(defaults.KNOWN_LIE_TARGETS_PATH, sep="\t", names=["target_id", "target"]).drop_duplicates()
+        
+        if test_data:
+            test_queries = get_queries(defaults.KNOWN_LIE_TEST_QUERY_PATH)
+            test_qrels = get_qrels(defaults.KNOWN_LIE_TEST_QREL_PATH)
+            test_data = (test_queries, test_qrels)
+        else:
+            test_data = None
 
+        dev_queries = train_queries.copy(deep=True)
+        dev_qrels = train_qrels.copy(deep=True)
+
+        if negatives_path is not None:
+            top_negative_ranks = np.load(os.path.join(negatives_path, "ranks_train_negatives.npy"))
+            train_qrels["negative_target_idx"] = top_negative_ranks
+
+            dev_top_negative_ranks = np.load(os.path.join(negatives_path, "ranks_dev_negatives.npy"))
+            dev_qrels["negative_target_idx"] = dev_top_negative_ranks
+        
+        return dict(
+            queries = (train_queries, dev_queries),
+            qrels = (train_qrels, dev_qrels),
+            targets = targets,
+            test = test_data
+        )
+        
+
+    elif dataset == "that-is-a-known-lie-politifact":
+        pass
     else:
         raise ValueError(f"{dataset} isnt a default. please include paths manually")
 
@@ -153,39 +179,8 @@ def get_bm25_preprocess_fn(dataset):
     elif dataset == "clef2022-checkthat-task2a--arabic":
         return lambda targets: targets[["title", "target"]].apply(lambda x: x[0]+' '+x[1], axis=1).to_list()
 
-#############
+    elif dataset == "that-is-a-known-lie-snopes":
+        return lambda targets: targets.target.to_list()
 
-# def get_test_tweets():
-#     return pd.read_csv(os.path.join(TESTPATH, "tweets-test.tsv"), sep="\t", names=["id","tweet"])
-
-# def get_tweets():
-#     return pd.read_csv(os.path.join(DATAPATH, "tweets-train-dev.tsv"), sep="\t", names=["id","tweet"]), get_test_tweets()
-
-# def get_test_qrels():
-#     conn_names = ["tweet_id", "tweet_num", "claim_id", "claim_num"]
-#     test_conns = pd.read_csv(os.path.join(TESTPATH, "qrels-test.tsv"), sep="\t", names=conn_names)
-#     return test_conns
-
-# def get_qrels(include_negatives=True):
-#     conn_names = ["tweet_id", "tweet_num", "claim_id", "claim_num"]
-#     train_conns = pd.read_csv(os.path.join(DATAPATH, "qrels-train.tsv"), sep="\t", names=conn_names)
-#     dev_conns = pd.read_csv(os.path.join(DATAPATH, "qrels-dev.tsv"), sep="\t", names=conn_names)
-    
-#     # get negatives
-#     if include_negatives:
-#         top_negative_ranks = np.load("experiments/candidate_selection/shared_resources/train_negative_ranks.npy")
-#         train_conns["negative_claim_idx"] = top_negative_ranks
-
-#         dev_top_negative_ranks = np.load("experiments/candidate_selection/shared_resources/dev_negative_ranks.npy")
-#         dev_conns["negative_claim_idx"] = dev_top_negative_ranks
-    
-#     return train_conns, dev_conns, get_test_qrels()
-
-# def get_claims(claimpath=os.path.join(DATAPATH, "vclaims")):
-#     claimpaths = [os.path.join(claimpath, f) for f in os.listdir(claimpath)]
-#     def load_claim(path):
-#         with open(path) as f:
-#             return json.load(f)
-    
-#     claims = [load_claim(path) for path in claimpaths]
-#     return pd.DataFrame(claims, columns=["title","subtitle","author","date","vclaim_id","vclaim"])
+    elif dataset == "that-is-a-known-lie-politifact":
+        pass

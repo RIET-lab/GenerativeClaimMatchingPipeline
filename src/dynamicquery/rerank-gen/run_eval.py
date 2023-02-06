@@ -111,6 +111,9 @@ def run():
     elif dataset == "clef2022-checkthat-task2a--arabic":
         query_prefix = defaults.TASK_2A_AR_QUERY_PREFIX
         target_prefix = defaults.TASK_2A_AR_TARGET_PREFIX
+    elif dataset == "that-is-a-known-lie-snopes":
+        query_prefix = defaults.KNOWN_LIE_QUERY_PREFIX
+        target_prefix = defaults.KNOWN_LIE_TARGET_PREFIX
     else:
         raise ValueError(f"Dataset {dataset} not implemented yet")
 

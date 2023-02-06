@@ -53,3 +53,17 @@ TASK_2A_AR_TEST21_QREL_PATH = TASK_2A_AR_PATH + "/CT2022-Task2A-AR-Dev-Test_QREL
 
 TASK_2A_AR_QUERY_PREFIX = "tweet: "
 TASK_2A_AR_TARGET_PREFIX = "claim: "
+
+# paths for known lie
+KNOWN_LIE_PATH = "That-is-a-Known-Lie/data/snopes/formatted"
+
+KNOWN_LIE_TRAIN_QREL_PATH = KNOWN_LIE_PATH + "/qrels_train.tsv"
+KNOWN_LIE_TEST_QREL_PATH = KNOWN_LIE_PATH + "/qrels_test.tsv"
+
+KNOWN_LIE_TRAIN_QUERY_PATH = KNOWN_LIE_PATH + "/queries_train.tsv"
+KNOWN_LIE_TEST_QUERY_PATH = KNOWN_LIE_PATH + "/queries_test.tsv"
+
+KNOWN_LIE_TARGETS_PATH = KNOWN_LIE_PATH + "/targets.tsv"
+
+KNOWN_LIE_QUERY_PREFIX = "claim: "
+KNOWN_LIE_TARGET_PREFIX = "fact: "

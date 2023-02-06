@@ -1,4 +1,8 @@
 data/
+clef2021-checkthat-lab/
+clef2022-checkthat-lab/
+That-is-a-Known-Lie/
+CT22/
 *.code-workspace
 *.csv
 *.tsv
